@@ -3,322 +3,449 @@ Created on 08.04.2010
 
 @author: morgenro
 '''
-import threading
-import traceback
-
 import time
-from utils import ssh, iptables
-from utils.comm import PHOperator
-from vbox import master
-import ConfigParser
 import sys
 import os
 
+import socket
+import select
+import struct
+
+import libvirt
+from xml.dom import minidom
 import shutil
 
-# global configuration
-gconfig = None
-masters = None
+import threading
 
-def setMasterNodes(masters, nodes):
-    # get the first master
-    current_master = int(-1)
-    nodesleft = int(0)
-
-    for n in nodes:
+class Slave:
+    '''
+    classdocs
+    '''
+    def __init__(self, name, address):
+        self.name = name
+        self.address = address
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.ready = True
+        self.readbuf = ""
+        self.nodes = []
+        
+    def connect(self, port):
+        self.sock.connect((self.address[0], port))
+        
+    def hasNode(self, name):
+        for n in self.nodes:
+            if n.name == name:
+                return True
+        return False
+    
+    """ get all real address of the nodes """
+    def fetchAddressList(self):
+        """
+        answer is a list of nodes with the corresponding address terminated by an "EOL"
+        node01 10.0.0.1
+        node02 10.0.0.2
+        node03 10.1.0.1
+        ...
+        EOL
+        """
+        self.sock.send("ACTION\nLIST\n")
+        
+        """ set ready state to false """
+        self.ready = False
+        
+        while not self.ready:
+            msg = self.readMessage()
+            if msg == "EOL":
+                self.ready = True
+            else:
+                (name, address) = msg.split(" ", 1)
+                self.setNodeAddress(name, address)
+                
+    def setNodeAddress(self, name, address):
+        for n in self.nodes:
+            if n.name == name:
+                n.address = address
+                
+    def getNodeAddress(self, name):
+        for n in self.nodes:
+            if n.name == name:
+                return n.address
+        return None
+    
+    def nodeSetup(self, name):
         try:
-            while nodesleft == 0:
-                current_master = current_master + 1
-                maxnodes = masters[current_master].options["maxnodes"]
-                if maxnodes != None:
-                    nodesleft = int(maxnodes)
-                else:
-                    nodesleft = -1
-
-            nodesleft = nodesleft - 1
+            self.sock.send("ACTION\nSETUP " + name + "\n")
+        except:
+            pass
+        
+    def nodeConnectionUp(self, name, address):
+        try:
+            self.sock.send("ACTION\nUP " + name + " " + address + "\n")
+        except:
+            pass
+        
+    def nodeConnectionDown(self, name, address):
+        try:
+            self.sock.send("ACTION\nDOWN " + name + " " + address + "\n")
+        except:
+            pass
+    
+    def prepare(self, url):
+        """ set ready state to false """
+        self.ready = False
+        
+        self.sock.send("PREPARE\n" + url + "\n")
+    
+    def run(self):
+        """ set ready state to false """
+        self.ready = False
+        
+        self.sock.send("RUN\n")
+    
+    def stop(self):
+        """ set ready state to false """
+        self.ready = False
+        
+        self.sock.send("STOP\n")
+    
+    def cleanup(self):
+        """ set ready state to false """
+        self.ready = False
+        
+        self.sock.send("CLEANUP\n")
+        
+    def readMessage(self):
+        while not "\n" in self.readbuf:
+            self.readbuf = self.readbuf + self.sock.recv(1500)
             
-            n.vmaster = masters[current_master]
-            n.vhost.master = n.vmaster
-        except IndexError:
-            n.vmaster = None
-            n.vhost.master = None
+        (line, self.readbuf) = self.readbuf.split("\n", 1)
+        return line.strip()
 
-def prepareSimulation(datadir, tmpdir, setupdir, config, ctrl):
-    global gconfig, masters
-    
-    # set the global config
-    gconfig = config
-    
-    # create a local masterhost
-    masters = master.getVBoxMasters(config, datadir, setupdir, tmpdir)
-
-    # get filename of the base image
-    if config.get('domu', 'image')[0] == '/':
-        baseimage=config.get('domu', 'image')
-    else:
-        baseimage = setupdir + "/" + config.get('domu', 'image')
-
-    # run basic setup
-    prototype = baseSetup(baseimage, datadir, tmpdir, setupdir)
-    
-    # assign a master to each node
-    nodes = ctrl.getNodes()
-    setMasterNodes(masters, nodes)
-    
-    # setup all nodes
-    for node in nodes:
-        nodeSetup(node, prototype, datadir, setupdir)
-
-    for m in masters:
-        m.commit()
-
-
-def cleanSimulation(config, ctrl, datadir, tmpdir, setupdir):
-    global gconfig, masters
-    
-    # set the global config
-    gconfig = config
-
-    # create a local masterhost
-    masters = master.getVBoxMasters(config, datadir, setupdir, tmpdir)
-    
-    # assign a master to each node
-    nodes = ctrl.getNodes()
-    setMasterNodes(masters, nodes)
-    
-    cleanUp(nodes)
-
-
-def runSimulation(datadir, tmpdir, setupdir, config, ctrl):
-    try:
-        _runSimulation(datadir, tmpdir, setupdir, config, ctrl)
-    except Exception as exp:
-        print("********************* Something bad happend ************************")
-        print("The problem: "+str(exp))
-        traceback.print_exc()
-        print("Trying to clean up the mess....")
-        cleanSimulation(config,ctrl,datadir,tmpdir,setupdir)
-    except KeyboardInterrupt:
-        print("Keyboard Strg-C")
-        print("Trying to clean up....")
-        cleanSimulation(config,ctrl,datadir,tmpdir,setupdir)
+class ClusterControl:
+    '''
+    classdocs
+    '''
+    def __init__(self):
+        '''
+        Constructor
+        '''
+        self.slaves = []
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         
-
-def _runSimulation(datadir, tmpdir, setupdir, config, ctrl):
-    global gconfig, masters
-    
-    # set the global config
-    gconfig = config
-    
-    # create a local masterhost
-    masters = master.getVBoxMasters(config, datadir, setupdir, tmpdir)
-    
-    # setup NAT if requested
-    try:
-        if config.get('dom0', 'nat') == "1":
-            print("setup network address translation")
-            iptables.setupNat()
-    except ConfigParser.NoOptionError:
-        pass
-    
-    # assign a master to each node
-    nodes = ctrl.getNodes()
-    setMasterNodes(masters, nodes)
-    
-    # create VMs for all nodes
-    numberofnodes = 0
-    print("setup virtual machines...")
-    for node in nodes:
-        createVM(node)
-        if node.vmaster != None:
-            numberofnodes = numberofnodes + 1
-    
-    # set host ip address
-    try:
-        masters[0].setVBox0IP(config.get('dom0', 'address'))
-    except ConfigParser.NoOptionError:
-        pass
-    
-    
-    # get a listener for machine callback
-    op = PHOperator(numberofnodes)
-    op.start()
-    
-    # run all VMs
-    print("Run virtual machines...")
-    for node in nodes:
-        node.vhost.start()
-
-    # commit command execution
-    for m in masters:
-	m.commit()
+        ''' Make the socket multicast-aware, and set TTL. '''
+        self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 20) # Change TTL (=20) to suit
+        self.sock.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_LOOP, 1)
         
-    # wait for all machine callbacks foor max 10 min
-    #TODO: Make configurable?
-    print("Waiting for nodes....")
-    op.join(600)
-    if op.isAlive():
-        print("Not all machines registered with the controller")
-        print("Trying a cleanup")
-        cleanUp(nodes)
-        sys.exit(-12)
-
-    print("All nodes registered with controller. Connecting nodes...")
-
-    # setup ssh connections to all hosts
-    for node in nodes:
-        if node.vmaster != None:
-            while node.ssh == None:
-                try:
-                    node.ssh = ssh.RemoteHost(node.address, "root", None, datadir + "/" + node.sshkey)
-                    node.ssh.connect()
-                    node.setup()
-                except:
-                    # connection failed or refused
-                    print("SSH connection failed, reconnecting...")
-                    time.sleep(1)
-                    node.ssh = None
-
-    # run custom simulation
-    ctrl.run()
-    ctrl.shutdown()
-    # collect files of the nodes
-    try:
-        files = config.get("download", "files").split(" ")
+    def scan(self, addr, timeout = 5):
+        ''' create an empty list '''
+        list = []
         
-        # create the download directory
-        os.mkdir(tmpdir + "/download")
+        ''' send out a discovery request '''
+        self.sock.sendto('\x00' + "HELLO", addr)
         
-        for node in nodes:
-            if node.vmaster != None:
-                try:
-                    # create a directory
-                    os.mkdir(tmpdir + "/download/" + node.name)
-                    
-                    for f in files:
-                        node.ssh.get(f, tmpdir + "/download/" + node.name + "/")
-                except:
-                    print("downloading of files failed on node " + node.name)
-    except:
-        pass
-    
-    # clean up the simulation
-    cleanUp(nodes)
-    
-    
-def cleanUp(nodes):
-    # close all VMs
-    print("Closing virtual machines...")
-    for node in nodes:
-        if node.ssh != None:
-            node.ssh.execute("/sbin/halt")
-            time.sleep(1)
-            node.ssh.close()
-
-    # wait some time
-    time.sleep(4)
-
-    # stop all virtual machines
-    for node in nodes:
-        node.vhost.stop()
-        node.vmaster.commit()
-    
-    # wait some time
-    time.sleep(4)
-    
-    # delete all VMs
-    sys.stdout.write("remove virtual machines...")
-    for node in nodes:
-        sys.stdout.write(" [" + node.name + "]")
-        sys.stdout.flush()
-        removeVM(node)
+        read_list = []
+        write_list = []
+        exc_list = []
         
-    sys.stdout.write("\n")
-    sys.stdout.flush()
+        read_list.append(self.sock)
+        
+        retry = True
+        
+        while retry:
+            (in_, out_, exc_) = select.select(read_list, write_list, exc_list, timeout)
+            retry = False
+        
+            for fd in in_:
+                retry = True
+                (data, address) = fd.recvfrom(1024)
+                values = struct.unpack_from("!BI", data)
+                if values[0] == 1:
+                    itm = (data[5:(values[1]+5)], address)
+                    list.append(itm)
+                    print("slave discovered: " + itm[0])
+                    self.slaves.append( Slave(itm[0], address) )
+                
+            for fd in out_:
+                pass
 
+            for fd in exc_:
+                pass
+            
+        return list
+    
+    def connect(self, port):
+        """ connect to all slaves """
+        for s in self.slaves:
+            s.connect(port)
+        
+    def prepare(self, url):
+        """ send out a prepare message to all cluster nodes """
+        for s in self.slaves:
+            s.prepare(url)
+        
+        """ wait until all cluster nodes are ready """
+        self.wait_ready()
+    
+    def run(self):
+        """ send out a run message to all cluster nodes """
+        for s in self.slaves:
+            s.run()
+        
+        """ wait until all cluster nodes are ready """
+        self.wait_ready()
+        
+        """ fetch all node lists of each slave """
+        for s in self.slaves:
+            s.fetchAddressList()
+        
+    def stop(self):
+        """ send out a stop message to all cluster nodes """
+        for s in self.slaves:
+            s.stop()
+        
+        """ wait until all cluster nodes are ready """
+        self.wait_ready()
+        
+    def cleanup(self):
+        """ send out a cleanup message to all cluster nodes """
+        for s in self.slaves:
+            s.cleanup()
+        
+        """ wait until all cluster nodes are ready """
+        self.wait_ready()
+    
+    def wait_ready(self, timeout = 3600):
+        read_list = []
+        write_list = []
+        exc_list = []
+        
+        """ fill the read list """
+        for s in self.slaves:
+            read_list.append(s.sock)
+        
+        while not self.isReady():
+            (in_, out_, exc_) = select.select(read_list, write_list, exc_list, timeout)
+            
+            for fd in in_:
+                s = self.getSlave(fd)
+                msg = s.readMessage()
+                if msg == "READY":
+                    print("Slave " + s.name + " is ready.")
+                    s.ready = True
+                
+            for fd in out_:
+                pass
 
-def sudo(command):
-    global gconfig
-    if gconfig.get('general', 'sudoquote') == "1":
-        os.system(gconfig.get('general', 'sudocmd') +" '"+str(command)+"'")
-    else:
-        os.system(gconfig.get('general', 'sudocmd') +" "+str(command))
+            for fd in exc_:
+                s = self.getSlave(fd)
+                print "slave went down (" + s.name + ")"
+        print("all slaves are ready")
+        
+    def isReady(self):
+        for s in self.slaves:
+            if not s.ready:
+                return False
+            
+        return True
+            
+    def getSlave(self, sockid):
+        for s in self.slaves:
+            if s.sock == sockid:
+                return s
+        return None
+    
+    def getSlaveOf(self, node):
+        for s in self.slaves:
+            if s.hasNode(node):
+                return s
+        return None
+    
+    def nodeSetup(self, name):
+        s = self.getSlaveOf(name)
+        if s != None:
+            print("call node setup for " + name)
+            s.nodeSetup(name)
+            
+    def nodeGetAddress(self, name):
+        for s in self.slaves:
+            addr = s.getNodeAddress(name)
+            if addr != None:
+                return addr
+        return None
+    
+    def nodeConnectionUp(self, name, host):
+        print("connection up " + name + " -> " + host.name)
+        s = self.getSlaveOf(name)
+        if s != None:
+            addr = self.nodeGetAddress(host.name)
+            if addr != None:
+                s.nodeConnectionUp(name, addr)
+    
+    def nodeConnectionDown(self, name, host):
+        print("connection down " + name + " -> " + host.name)
+        s = self.getSlaveOf(name)
+        if s != None:
+            addr = self.nodeGetAddress(host.name)
+            if addr != None:
+                s.nodeConnectionDown(name, addr)
 
-#Set up base
-def baseSetup(baseimage, datadir, tmpdir, setupdir):
-    print("Copying base image....")
-    prototype_image = tmpdir + "/prototype.image"
-    shutil.copy(baseimage, prototype_image)
+class Setup(object):
+    '''
+    classdocs
+    '''
     
-    print("Basic image preparation")
-    sudo("/bin/bash " + datadir + "/prepare_image_base.sh " + prototype_image + " " + setupdir)
-    
-    # copy the prepares image to all ssh masters
-    global masters
-    for m in masters:
-        if m.options["type"] != "local":
-            m.upload(prototype_image)
+    def __init__(self, config, setupname, datadir):
+        self.config = config
+        self.name = setupname
+        self.datadir = datadir
+        self.basedir = self.datadir + "/base"
+        self.servdir = self.datadir + "/serv/" + self.name
+        self.setupdir = self.datadir + "/setups/" + self.name
+        self.template_base_file = self.setupdir + "/" + self.config.get("template", "image")
+        self.cc = None
+        
+    def loadController(self):
+        """ import the module """
+        modulename = self.config.get('general','module')
+        ctrl = None
+        exec("import " + modulename)
+        exec("ctrl = " + modulename + ".getController(self)")
+        return ctrl
+        
+    def exit(self):
+        self.cc.stop()
 
+    def sudo(self, command):
+        print "superuser execution:"
+        print command
+        
+        if self.config.get('general', 'sudomode') == "plain":
+            os.system("sudo " + str(command))
+        elif self.config.get('general', 'sudomode') == "gksu":
+            os.system("gksu '" + str(command) + "'")
     
-    return prototype_image
+    def __init_cluster(self):
+        if self.cc != None:
+            return
+        
+        """ discover the slaves """
+        self.cc = ClusterControl()
+        self.cc.scan( ("225.16.16.1", 3234), 1 )
+        
+        """ load the controller """
+        self.ctrl = self.loadController()
+        
+        """ create configuration per slave """
+        self.prepareSlaveConfiguration()
+        
+        """ connect to all slaves """
+        self.cc.connect(4242)
+        
+    def prepare(self):
+        """ initialize the cluster """
+        self.__init_cluster()
+        
+        """ create serv folder """
+        try:
+            os.mkdir(self.servdir)
+        except OSError:
+            pass
+        
+        """ prepare the image template """
+        self.prepareTemplateImage()
+        
+        """ save the virtualization template """
+        self.storeVirtTemplate(self.servdir + "/virt-template.xml")
+        
+        """ copy node specific scripts """
+        shutil.copy(self.setupdir + "/modify_image_node.sh", self.servdir + "/modify_image_node.sh")
+        
+        """ copy magicmount script """
+        shutil.copy(self.basedir + "/magicmount.sh", self.servdir + "/magicmount.sh")
+        
+        """ send out prepare command """
+        url = self.config.get("general", "url")
+        self.cc.prepare(url + "/" + self.name)
+    
+    def prepareSlaveConfiguration(self):
+        nodes = self.ctrl.getNodes()
+        max_nodes = int(self.config.get("general", "max_slave_nodes"))
+        offset = 0
+        
+        for slave in self.cc.slaves:
+            i = 0
+            
+            """ create private folder for the slave """
+            try:
+                os.mkdir(self.servdir + "/" + slave.name)
+            except OSError:
+                pass
+        
+            """ generate a node list """
+            fd = open(self.servdir + "/" + slave.name + "/nodes.txt", "w")
+            slave.nodes = []
+            
+            try:
+                while i < max_nodes:
+                    fd.write(nodes[offset + i].name + "\n")
+                    slave.nodes.append( nodes[offset + i] )
+                    i = i + 1
+            except IndexError:
+                pass
+            
+            offset = offset + i
+            fd.close()
+    
+    def prepareTemplateImage(self):
+        print("Copying base image....")
+        template_image = self.servdir + "/template.image"
+        shutil.copy(self.template_base_file, template_image)
+        
+        print("Basic image preparation")
+        self.sudo("/bin/bash " + self.basedir + "/prepare_image_base.sh " + template_image + " " + self.basedir + " " + self.setupdir)
+    
+    def storeVirtTemplate(self, filename):
+        ''' open a local virtual box session '''
+        conn = libvirt.open(self.config.get("template", "virturl"))
+        if conn == None:
+            print 'Failed to open connection to the hypervisor'
+            sys.exit(1)
+        
+        ''' get xml for the template host '''
+        tpl_host = conn.lookupByName(self.config.get("template", "virtname"))
+        
+        xml = tpl_host.XMLDesc(0)
+        doc = minidom.parseString(xml)
+        
+        ''' remove all unique elements: UUID, MAC, dist source file '''
+        for id in doc.getElementsByTagName("uuid"):
+            id.parentNode.removeChild(id)
+            
+        for mac in doc.getElementsByTagName("mac"):
+            if mac.hasAttribute("address"):
+                mac.removeAttribute("address")
+        
+        for disk in doc.getElementsByTagName("disk"):
+            source = disk.getElementsByTagName("source")[0]
+            if source.hasAttribute("file"):
+                source.setAttribute("file", "not-set")
+        
+        fd = open(filename, "w")
+        fd.write(doc.toxml())
+        fd.close()
+        
+    def run(self):
+        """ initialize the cluster """
+        self.__init_cluster()
+        self.cc.run()
 
-def nodeSetup(node, prototype, datadir, setupdir):
-    if node.vmaster == None:
-        print("Skip setup of node " + node.name + "; No resources left.")
-        return
+        # run custom simulation
+        self.ctrl.run()
+        self.ctrl.shutdown()
     
-    print("Setup node " + node.name)
-    
-    # get the master for this node
-    vmaster = node.vmaster
-    
-    # upload needed scripts
-    vmaster.upload(setupdir + "/modify_image_node.sh")
-    vmaster.upload(datadir + "/prepare_image_node.sh")
-    vmaster.upload(datadir + "/magicmount.sh")
-    vmaster.execute("mkdir -p " + vmaster.options["tmpdir"] + "/mnt")
-    
-    vmaster.upload(datadir + "/" + node.sshpubkey)
-    sshkey = os.path.basename(node.sshpubkey)
-    
-    # copy the prototype to a new image
-    vmaster.copy(vmaster.options["tmpdir"]+"/prototype.image", vmaster.options["tmpdir"]+"/"+node.image)
-    
-    # run prepare script
-    vmaster.sudo("bash " + vmaster.options["tmpdir"] + "/prepare_image_node.sh " + vmaster.options["tmpdir"]+"/"+node.image + " " + vmaster.options["tmpdir"] + " " + node.address + " " + node.name + " " + node.gateway + " " + node.dns + " " + sshkey)
-    
-    # remove old vdi image
-    try:
-        vmaster.remove(vmaster.options["tmpdir"]+"/"+node.vdiimage)
-    except OSError:
-        pass
-    
-    # create new vdi image
-    vmaster.createHD(vmaster.options["tmpdir"]+"/"+node.image, vmaster.options["tmpdir"]+"/"+node.vdiimage)
-    
-    # remove the node image
-    vmaster.remove(vmaster.options["tmpdir"]+"/"+node.image)
-
-
-def createVM(node):
-    if node.vmaster == None:
-        print("Skip creating of node " + node.name + "; No resources left.")
-        return
-    
-    print("Creating VM " + node.name)
-    node.vmaster.createVM(node.name)
-    node.vmaster.configWith(node.name, node.vboxopts)
-    node.vmaster.connectHd(node.name, node.vmaster.options["tmpdir"]+"/"+node.vdiimage)
-    
-
-def removeVM(node):
-    if node.vmaster == None:
-        return
-    print("Removing VMs")
-    node.vhost = None
-    node.vmaster.unregisterVM(node.name)
-    node.vmaster.removeImage(node.vmaster.options["tmpdir"]+"/"+node.vdiimage)
-
-def exit():
-    for m in masters:
-        m.close()
+    """ cleanup the setup """
+    def cleanup(self):
+        """ initialize the cluster """
+        self.__init_cluster()
+        self.cc.cleanup()
+        

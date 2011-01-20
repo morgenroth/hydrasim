@@ -8,14 +8,14 @@ import logplay.theone
 class MobilityModel:
 
 
-    def __init__(self,config,nodes):
-        self.mobilitymodule=config.get('mobility','model')
+    def __init__(self, setup):
+        self.mobilitymodule= setup.config.get('mobility','model')
         if self.mobilitymodule == "randomwalk":
-            self.model=randomwalk.RandomWalk(nodes,config)
+            self.model=randomwalk.RandomWalk(setup.ctrl.getNodes(), setup.config)
         elif self.mobilitymodule == "theone":
-            self.model=logplay.theone.TheONEReader(nodes, config)
+            self.model=logplay.theone.TheONEReader(setup.ctrl.getNodes(), setup.config)
         elif self.mobilitymodule == "static":
-            self.model=logplay.static.StaticConnections(nodes,config)
+            self.model=logplay.static.StaticConnections(setup.ctrl.getNodes(), setup.config)
         else:
             print("Mobility: Unknown model "+str(self.mobilitymodule))
             self.start=self.nomodule
