@@ -120,6 +120,9 @@ class Slave:
             
         (line, self.readbuf) = self.readbuf.split("\n", 1)
         return line.strip()
+    
+    def quit(self):
+        self.sock.send("QUIT\n")
 
 class ClusterControl:
     '''
@@ -205,6 +208,10 @@ class ClusterControl:
         
         """ wait until all cluster nodes are ready """
         self.wait_ready()
+        
+        """ quit the connection """
+        for s in self.slaves:
+            s.quit()
         
     def cleanup(self):
         """ send out a cleanup message to all cluster nodes """

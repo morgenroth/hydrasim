@@ -92,14 +92,14 @@ rm "$BASE/mnt/modify_image_base.sh"
 chroot "$BASE/mnt" /bin/sh <<EOF
 
 # network configuration
-uci del network.lan.type
-uci del network.lan.ipaddr
-uci del network.lan.netmask
-uci set network.lan.proto=dhcp
-uci commit
+/sbin/uci del network.lan.type
+/sbin/uci del network.lan.ipaddr
+/sbin/uci del network.lan.netmask
+/sbin/uci set network.lan.proto=dhcp
+/sbin/uci commit
 
 # change permissions
-chmod 0755 /etc/init.d/hnd
+/bin/chmod 0755 /etc/init.d/hnd
 
 # enable node initrc
 /etc/init.d/hnd enable
