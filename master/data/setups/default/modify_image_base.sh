@@ -31,5 +31,4 @@ if [ -x /etc/init.d/ibrdtn ]; then
 	/etc/init.d/ibrdtn enable
 fi
 
-
 echo "Modify base image done."

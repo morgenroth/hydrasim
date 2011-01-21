@@ -1,5 +1,60 @@
-net_interfaces = lan0
-net_lan0_type = tcp
-net_lan0_interface = eth0
-discovery_interface = eth0
-routing = epidemic
+#
+# If something bad happened, the safe mode will be activated.
+# These are the restrictions for safe mode only.
+#
+config 'daemon' 'safemode'
+	option forwarding	no
+	option storage		64M
+	option maxblock		16M
+	
+#
+# storage specific settings
+#
+config 'daemon' 'storage'
+#	option blobs		/tmp/ibrdtn/blobs
+#	option bundles		/tmp/ibrdtn/bundles
+#	option container	/tmp/ibrdtn/container.img
+#	option path			/tmp/ibrdtn/container
+	option limit		60M
+
+#
+# statistic logging
+#
+config 'daemon' 'statistic'
+	# types: stdout | syslog | plain | csv | stat | udp
+	option type			udp
+	option interval		60
+	option file			/tmp/ibrdtn.stats
+	option address		10.42.0.1
+	option port		4848
+
+#
+# routing mode
+#
+# values: default | epidemic
+#
+# In the "default" the daemon only delivers bundles to neighbors and static
+# available nodes. The alternative module "epidemic" spread all bundles to
+# all available neighbors.
+#
+config 'daemon' 'main'
+	option	routing		epidemic
+#	option	forwarding	no
+
+#
+# discovery over UDP/IP
+#
+# You can specify an address to listen to for discovery announcements.
+# Multicast addresses are supported. If no address is specified the default
+# broadcast address is used.
+#
+config 'daemon' 'discovery'
+#	option address		225.0.12.5
+#	option timeout		5
+
+config 'network'
+	option type		tcp
+	option interface	eth0
+	option port		4556
+	option discovery	yes
+

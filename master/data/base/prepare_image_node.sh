@@ -37,23 +37,6 @@ bash $SETUP/magicmount.sh "$IMAGE" "$SETUP/mnt/"
 # switch to chroot
 chroot "$SETUP/mnt/" /bin/sh <<EOF
 
-# set permissions of authorized_keys file
-#chmod 0600 /etc/dropbear/authorized_keys
-
-# set the nameserver
-#echo "nameserver $DNS" > /etc/resolv.conf
-
-# configure network
-#uci delete network.lan.ipaddr
-#uci delete network.lan.netmask
-#uci delete network.lan.type
-#uci set network.lan.proto=static
-#uci set network.lan.ipaddr=$IP
-#uci set network.lan.dns=$DNS
-#uci set network.lan.netmask=255.255.255.0
-#uci set network.lan.gateway=$GATEWAY
-#uci commit network
-
 uci set system.@system[0].hostname=$NODENAME
 uci commit system.@system[0].hostname
 
