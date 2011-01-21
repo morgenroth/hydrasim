@@ -16,24 +16,14 @@
 #
 # (c) 2010 IBR
 
-
-IMAGE=$1
-SETUP=$2
-IP=$3
-NODENAME=$4
-GATEWAY=$5
-DNS=$6
-SSHPUBKEY=$7
+SETUP=$1
+NODENAME=$2
+IMAGE=$3
 
 echo "------- Node setup ---------------------------------------------------"
 
 echo "Preparing image in $IMAGE with"
-echo "Node address  : $IP"
 echo "Node name     : $NODENAME"
-echo "Gateway       : $GATEWAY"
-echo "DNS server    : $DNS"
-
-
 
 if [ ! -e "$IMAGE" ]
 then
@@ -41,37 +31,31 @@ then
    exit -1
 fi
 
-
+mkdir -p "$SETUP/mnt/"
 bash $SETUP/magicmount.sh "$IMAGE" "$SETUP/mnt/"
-
-# add ssh key to image
-echo "copy SSH key $SSHPUBKEY"
-mkdir -p $SETUP/mnt/etc/dropbear
-cat $SETUP/$SSHPUBKEY >> $SETUP/mnt/etc/dropbear/authorized_keys
 
 # switch to chroot
 chroot "$SETUP/mnt/" /bin/sh <<EOF
 
 # set permissions of authorized_keys file
-chmod 0600 /etc/dropbear/authorized_keys
+#chmod 0600 /etc/dropbear/authorized_keys
 
 # set the nameserver
-echo "nameserver $DNS" > /etc/resolv.conf
+#echo "nameserver $DNS" > /etc/resolv.conf
 
 # configure network
-uci delete network.lan.ipaddr
-uci delete network.lan.netmask
-uci delete network.lan.type
-uci set network.lan.proto=static
-uci set network.lan.ipaddr=$IP
-uci set network.lan.dns=$DNS
-uci set network.lan.netmask=255.255.255.0
-uci set network.lan.gateway=$GATEWAY
+#uci delete network.lan.ipaddr
+#uci delete network.lan.netmask
+#uci delete network.lan.type
+#uci set network.lan.proto=static
+#uci set network.lan.ipaddr=$IP
+#uci set network.lan.dns=$DNS
+#uci set network.lan.netmask=255.255.255.0
+#uci set network.lan.gateway=$GATEWAY
+#uci commit network
+
 uci set system.@system[0].hostname=$NODENAME
-uci commit network
 uci commit system.@system[0].hostname
-
-
 
 # close chroot
 EOF
@@ -79,10 +63,15 @@ EOF
 
 #custom setup preparation
 echo ">>>>> Custom image setup"
-chroot "$SETUP/mnt/" /bin/sh /modify_image_node.sh "$IP" "$NODENAME"
+cp $SETUP/modify_image_node.sh "$SETUP/mnt"
+chroot "$SETUP/mnt/" /bin/sh /modify_image_node.sh "$NODENAME"
 echo ">>>>> Custom image setup done."
 
-
 umount "$SETUP/mnt/"
+
+until [ $? -eq 0 ]; do
+	sleep 1
+	umount "$SETUP/mnt/"
+done
 
 echo "------- Node setup done ------------------------------------------------"

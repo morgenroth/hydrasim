@@ -15,6 +15,7 @@ import libvirt
 from xml.dom import minidom
 import shutil
 
+import ConfigParser
 import threading
 
 class Slave:
@@ -30,7 +31,10 @@ class Slave:
         self.nodes = []
         
     def connect(self, port):
-        self.sock.connect((self.address[0], port))
+        try:
+            self.sock.connect((self.address[0], port))
+        except socket.error:
+            print("failed to connect to " + self.name)
         
     def hasNode(self, name):
         for n in self.nodes:
@@ -48,19 +52,22 @@ class Slave:
         ...
         EOL
         """
-        self.sock.send("ACTION\nLIST\n")
-        
-        """ set ready state to false """
-        self.ready = False
-        
-        while not self.ready:
-            msg = self.readMessage()
-            if msg == "EOL":
-                self.ready = True
-            else:
-                (name, address) = msg.split(" ", 1)
-                self.setNodeAddress(name, address)
-                
+        try:
+            self.sock.send("ACTION\nLIST\n")
+            
+            """ set ready state to false """
+            self.ready = False
+            
+            while not self.ready:
+                msg = self.readMessage()
+                if msg == "EOL":
+                    self.ready = True
+                else:
+                    (name, address) = msg.split(" ", 1)
+                    self.setNodeAddress(name, address)
+        except socket.error:
+            print("failed to fetch LIST from " + self.name)
+    
     def setNodeAddress(self, name, address):
         for n in self.nodes:
             if n.name == name:
@@ -94,41 +101,63 @@ class Slave:
         """ set ready state to false """
         self.ready = False
         
-        self.sock.send("PREPARE\n" + url + "\n")
+        try:
+            self.sock.send("PREPARE\n" + url + "\n")
+        except socket.error:
+            self.ready = True
+            print("failed to send PREPARE to " + self.name)
     
     def run(self):
         """ set ready state to false """
         self.ready = False
         
-        self.sock.send("RUN\n")
+        try:
+            self.sock.send("RUN\n")
+        except socket.error:
+            self.ready = True
+            print("failed to send RUN to " + self.name)
     
     def stop(self):
         """ set ready state to false """
         self.ready = False
         
-        self.sock.send("STOP\n")
+        try:
+            self.sock.send("STOP\n")
+        except socket.error:
+            self.ready = True
+            print("failed to send STOP to " + self.name)
     
     def cleanup(self):
         """ set ready state to false """
         self.ready = False
         
-        self.sock.send("CLEANUP\n")
+        try:
+            self.sock.send("CLEANUP\n")
+        except socket.error:
+            self.ready = True
+            print("failed to send CLEANUP to " + self.name)
         
     def readMessage(self):
-        while not "\n" in self.readbuf:
-            self.readbuf = self.readbuf + self.sock.recv(1500)
-            
-        (line, self.readbuf) = self.readbuf.split("\n", 1)
-        return line.strip()
+        try:
+            while not "\n" in self.readbuf:
+                self.readbuf = self.readbuf + self.sock.recv(1500)
+                
+            (line, self.readbuf) = self.readbuf.split("\n", 1)
+            return line.strip()
+        except socket.error:
+            return None
     
     def quit(self):
-        self.sock.send("QUIT\n")
+        try:
+            self.sock.send("QUIT\n")
+        except socket.error:
+            print("failed to send QUIT to " + self.name)
 
 class ClusterControl:
     '''
     classdocs
     '''
-    def __init__(self):
+    def __init__(self, mcast_interface = ""):
         '''
         Constructor
         '''
@@ -138,6 +167,7 @@ class ClusterControl:
         ''' Make the socket multicast-aware, and set TTL. '''
         self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 20) # Change TTL (=20) to suit
         self.sock.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_LOOP, 1)
+        self.sock.bind((mcast_interface, 0))
         
     def scan(self, addr, timeout = 5):
         ''' create an empty list '''
@@ -336,7 +366,11 @@ class Setup(object):
             return
         
         """ discover the slaves """
-        self.cc = ClusterControl()
+        try:
+            self.cc = ClusterControl(self.config.get("general", "mcast_interface"))
+        except ConfigParser.NoOptionError:
+            self.cc = ClusterControl()
+            
         self.cc.scan( ("225.16.16.1", 3234), 1 )
         
         """ load the controller """
@@ -365,6 +399,7 @@ class Setup(object):
         self.storeVirtTemplate(self.servdir + "/virt-template.xml")
         
         """ copy node specific scripts """
+        shutil.copy(self.basedir + "/prepare_image_node.sh", self.servdir + "/prepare_image_node.sh")
         shutil.copy(self.setupdir + "/modify_image_node.sh", self.servdir + "/modify_image_node.sh")
         
         """ copy magicmount script """

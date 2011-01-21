@@ -7,6 +7,13 @@ import sys
 import ConfigParser
 from basics import Setup
 from optparse import OptionParser
+import webserver
+import time
+import os
+
+def _run_webserver(datadir):
+    websrv = webserver.Webserver(8080)
+    websrv.start()
 
 if __name__ == '__main__':
     print("- hydra emulation 0.2 -")
@@ -25,6 +32,13 @@ if __name__ == '__main__':
 
     """ parse arguments """
     (options, args) = parser.parse_args()
+    
+    """ change to an absolute path of tmpdir and datadir """
+    options.tmpdir = os.path.abspath(options.tmpdir)
+    options.datadir = os.path.abspath(options.datadir)
+    
+    """ change into the datadir as working directory """
+    os.chdir(options.datadir)
     
     """ get runmode """
     try:
@@ -54,18 +68,22 @@ if __name__ == '__main__':
     """ create a new setup """
     s = Setup(config, setupname, options.datadir)
     
-    if runmode == "prepare":
-        s.prepare()
-    elif runmode == "run":
-        s.run()
-    elif runmode == "clean":
-        s.cleanup()
-    elif runmode == "all":
-        s.prepare()
-        s.run()
-    else:
-        print("Invalid runmode "+str(runmode))
-        sys.exit(-1)
-
-    s.exit()
+    try:
+        if runmode == "prepare":
+            _run_webserver(options.datadir)
+            s.prepare()
+        elif runmode == "run":
+            s.run()
+        elif runmode == "clean":
+            s.cleanup()
+        elif runmode == "all":
+            _run_webserver(options.datadir)
+            s.prepare()
+            s.run()
+        else:
+            print("Invalid runmode "+str(runmode))
+            sys.exit(-1)
+    finally:
+        s.exit()
+        
     print("Done")

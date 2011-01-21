@@ -7,10 +7,10 @@
 #
 # This can be empty
 #
-# Parameter <IP> <hostname>
+# Parameter <hostname>
 
 
-echo "Modify node  for $2 ($1)"
+echo "Modify $2"
 
 
 

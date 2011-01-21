@@ -8,6 +8,7 @@ import SimpleHTTPServer
 import SocketServer
 from optparse import OptionParser
 import os
+import threading
 
 if __name__ == '__main__':
     """ help message """
@@ -26,5 +27,22 @@ if __name__ == '__main__':
     handler = SimpleHTTPServer.SimpleHTTPRequestHandler
     httpd = SocketServer.TCPServer(("", port), handler)
 
-    print "serving at port", port
-    httpd.serve_forever()
+    try:
+        print "serving at port", port
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    
+class Webserver(threading.Thread):
+    
+    def __init__(self, port):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.port = port
+    
+    def run(self):
+        handler = SimpleHTTPServer.SimpleHTTPRequestHandler
+        httpd = SocketServer.TCPServer(("", self.port), handler)
+    
+        print "http serving at port", self.port
+        httpd.serve_forever()

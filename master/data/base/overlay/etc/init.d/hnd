@@ -1,9 +1,10 @@
 #!/bin/sh /etc/rc.common
 # Copyright (C) 2007 OpenWrt.org
 
-START=90
+START=99
 
 start() {
+	sleep 30
 	/usr/sbin/hnd -p 3486 -d 3232 &
 }
 
