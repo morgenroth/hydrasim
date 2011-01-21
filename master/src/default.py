@@ -76,6 +76,8 @@ if __name__ == '__main__':
             s.run()
         elif runmode == "clean":
             s.cleanup()
+        elif runmode == "cleanup":
+            s.cleanup()
         elif runmode == "all":
             _run_webserver(options.datadir)
             s.prepare()

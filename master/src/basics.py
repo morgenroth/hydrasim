@@ -172,6 +172,7 @@ class ClusterControl:
     def scan(self, addr, timeout = 5):
         ''' create an empty list '''
         list = []
+        self.slaves = []
         
         ''' send out a discovery request '''
         self.sock.sendto('\x00' + "HELLO", addr)
@@ -195,7 +196,6 @@ class ClusterControl:
                 if values[0] == 1:
                     itm = (data[5:(values[1]+5)], address)
                     list.append(itm)
-                    print("slave discovered: " + itm[0])
                     self.slaves.append( Slave(itm[0], address) )
                 
             for fd in out_:
@@ -267,7 +267,6 @@ class ClusterControl:
                 s = self.getSlave(fd)
                 msg = s.readMessage()
                 if msg == "READY":
-                    print("Slave " + s.name + " is ready.")
                     s.ready = True
                 
             for fd in out_:
@@ -276,7 +275,6 @@ class ClusterControl:
             for fd in exc_:
                 s = self.getSlave(fd)
                 print "slave went down (" + s.name + ")"
-        print("all slaves are ready")
         
     def isReady(self):
         for s in self.slaves:
@@ -370,8 +368,24 @@ class Setup(object):
             self.cc = ClusterControl(self.config.get("general", "mcast_interface"))
         except ConfigParser.NoOptionError:
             self.cc = ClusterControl()
+        
+        answer = None
+        while answer != "yes":
+            """ scan for slaves """
+            nodes = self.cc.scan( ("225.16.16.1", 3234), 1 )
             
-        self.cc.scan( ("225.16.16.1", 3234), 1 )
+            nodelist_txt = ""
+            for n in nodes:
+                nodelist_txt = nodelist_txt + n[0] + " (" + n[1][0] + "), "
+                
+            print "Available nodes: " + nodelist_txt.strip().rstrip(",")
+            
+            try:
+                answer = raw_input('Are all slaves discovered? (yes/no/abort): ')
+                if answer == "abort":
+                    sys.exit(-1)
+            except KeyboardInterrupt:
+                sys.exit(-1)
         
         """ load the controller """
         self.ctrl = self.loadController()
