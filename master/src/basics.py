@@ -337,6 +337,11 @@ class Setup(object):
         self.servdir = self.datadir + "/serv/" + self.name
         self.setupdir = self.datadir + "/setups/" + self.name
         self.template_base_file = self.setupdir + "/" + self.config.get("template", "image")
+        
+        ''' use the template image in the base directory if the specific not exists '''
+        if not os.path.isfile(self.template_base_file):
+            self.template_base_file = self.basedir + "/" + self.config.get("template", "image")
+            
         self.cc = None
         
     def loadController(self):
@@ -409,12 +414,21 @@ class Setup(object):
         """ prepare the image template """
         self.prepareTemplateImage()
         
-        """ save the virtualization template """
-        self.storeVirtTemplate(self.servdir + "/virt-template.xml")
+        #""" save the virtualization template """
+        #self.storeVirtTemplate(self.servdir + "/virt-template.xml")
         
         """ copy node specific scripts """
-        shutil.copy(self.basedir + "/prepare_image_node.sh", self.servdir + "/prepare_image_node.sh")
-        shutil.copy(self.setupdir + "/modify_image_node.sh", self.servdir + "/modify_image_node.sh")
+        shutil.copy(os.path.join(self.basedir, "prepare_image_node.sh"), os.path.join(self.servdir, "prepare_image_node.sh"))
+        shutil.copy(os.path.join(self.setupdir, "modify_image_node.sh"), os.path.join(self.servdir, "modify_image_node.sh"))
+        
+        """ copy libvirt templates """
+        for f in os.listdir(self.basedir):
+            if f.startswith("node-template.") and f.endswith(".xml"):
+                shutil.copy(os.path.join(self.basedir, f), os.path.join(self.servdir, f))
+                
+        for f in os.listdir(self.setupdir):
+            if f.startswith("node-template.") and f.endswith(".xml"):
+                shutil.copy(os.path.join(self.setupdir, f), os.path.join(self.servdir, f))
         
         """ copy magicmount script """
         shutil.copy(self.basedir + "/magicmount.sh", self.servdir + "/magicmount.sh")

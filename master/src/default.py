@@ -27,7 +27,7 @@ if __name__ == '__main__':
     """ add options to the parser """
     parser.add_option("-t", "--tmp-dir", dest="tmpdir", default="/tmp",
         help="define a temporary directory")
-    parser.add_option("-d", "--data-dir", dest="datadir", default="../data",
+    parser.add_option("-d", "--data-dir", dest="datadir", default="data",
         help="specify the data directory containing setup scripts and ssh keys")
 
     """ parse arguments """

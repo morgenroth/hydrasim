@@ -33,6 +33,9 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         pass
     
+class ReusableTCPServer(SocketServer.TCPServer):
+    allow_reuse_address = True
+    
 class Webserver(threading.Thread):
     
     def __init__(self, port):
@@ -42,7 +45,7 @@ class Webserver(threading.Thread):
     
     def run(self):
         handler = SimpleHTTPServer.SimpleHTTPRequestHandler
-        httpd = SocketServer.TCPServer(("", self.port), handler)
+        httpd = ReusableTCPServer(("", self.port), handler)
     
         print "http serving at port", self.port
         httpd.serve_forever()
