@@ -417,6 +417,9 @@ class Setup(object):
         #""" save the virtualization template """
         #self.storeVirtTemplate(self.servdir + "/virt-template.xml")
         
+        """ copy the list of monitor nodes """
+        shutil.copy(os.path.join(self.setupdir, "monitor-nodes.txt"), os.path.join(self.servdir, "monitor-nodes.txt"))
+        
         """ copy node specific scripts """
         shutil.copy(os.path.join(self.basedir, "prepare_image_node.sh"), os.path.join(self.servdir, "prepare_image_node.sh"))
         shutil.copy(os.path.join(self.setupdir, "modify_image_node.sh"), os.path.join(self.servdir, "modify_image_node.sh"))
