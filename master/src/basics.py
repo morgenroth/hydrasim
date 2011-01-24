@@ -407,7 +407,7 @@ class Setup(object):
         
         """ create serv folder """
         try:
-            os.mkdir(self.servdir)
+            os.makedirs(self.servdir)
         except OSError:
             pass
         
@@ -447,7 +447,7 @@ class Setup(object):
             
             """ create private folder for the slave """
             try:
-                os.mkdir(self.servdir + "/" + slave.name)
+                os.makedirs(self.servdir + "/" + slave.name)
             except OSError:
                 pass
         
