@@ -33,11 +33,9 @@ class MobilityNode:
     def y(self,y):
         self.iy=float(y)
 
-
     @property
     def name(self):
         return self.name
-
 
     @property
     def heading(self):
@@ -55,7 +53,6 @@ class MobilityNode:
     @speed.setter
     def speed(self,speed):
         self.heading=float(speed)
-
 
     @property
     def lasttime(self):
@@ -82,3 +79,5 @@ class MobilityNode:
     def distanceTo(self,othernode):
         return math.sqrt( float((othernode.x-self.x)*(othernode.x-self.x)) + float((othernode.y-self.y)*(othernode.y-self.y))    )
         
+    def updatePosition(self):
+        self.modelnode.setPosition(self.x, self.y, None)

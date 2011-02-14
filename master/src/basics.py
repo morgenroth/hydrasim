@@ -17,6 +17,7 @@ import shutil
 
 import ConfigParser
 import threading
+import visualization
 
 class Slave:
     '''
@@ -343,6 +344,7 @@ class Setup(object):
             self.template_base_file = self.basedir + "/" + self.config.get("template", "image")
             
         self.cc = None
+        self.vizapi = visualization.VizServer((self.config.get("general", "mcast_interface"), 5000))
         
     def loadController(self):
         """ import the module """
@@ -354,6 +356,9 @@ class Setup(object):
         
     def exit(self):
         self.cc.stop()
+        
+    def nodePosition(self, name, x, y, z):
+        self.vizapi.nodePosition(name, x, y, z)
 
     def sudo(self, command):
         print "superuser execution:"
@@ -505,6 +510,9 @@ class Setup(object):
         fd.close()
         
     def run(self):
+        """ initialize the visualization api """
+        self.vizapi.startup()
+        
         """ initialize the cluster """
         self.__init_cluster()
         self.cc.run()
@@ -512,6 +520,9 @@ class Setup(object):
         # run custom simulation
         self.ctrl.run()
         self.ctrl.shutdown()
+        
+        # shutdown viz api
+        self.vizapi.shutdown()
     
     """ cleanup the setup """
     def cleanup(self):

@@ -86,11 +86,10 @@ class RandomWalk(threading.Thread):
             time.sleep(self.resolution)
             elapsedTime=time.time()-startTime
             absTime=absTime+elapsedTime
-            nodeid=0
 
             for node in self.nodes:
                  dist=node.speed*(float(absTime)-float(node.lasttime))
-                 #print("NodeID is "+str(nodeid)+" and travels "+str(dist)+" (v: "+str(node[I_V])+" dT: "+str(float(time)-float(node.lasttime)))
+                 #print("NodeID is "+str(node.name)+" and travels "+str(dist)+" (v: "+str(node[I_V])+" dT: "+str(float(time)-float(node.lasttime)))
                  dx=math.cos(node.heading)*dist
                  dy=math.sin(node.heading)*dist
                  nx=dx+node.x
@@ -126,9 +125,10 @@ class RandomWalk(threading.Thread):
                      node.lasttime = absTime
                 #
                  currLog.time      = absTime
-                 currLog.node      = self.nodes[nodeid].name
+                 currLog.node      = node.name
                  currLog.position  = (nx,ny)
                  currLog.write_line(fout)
+                 
                  #new basepoint reached (time elapsed)
                  if (absTime > node.lasttime+self.movetime):
                     #print "Switch direction"
@@ -137,8 +137,9 @@ class RandomWalk(threading.Thread):
                     node.y         = ny #new basepoint
                     node.lasttime  = absTime
                     node.speed     = self.rand.uniform(self.vmin, self.vmax)
-
-                 nodeid=nodeid+1
+                    
+                 """ write position to visualization """
+                 node.updatePosition()
             #dddddd
             #Check connections
             self.updateConnections()

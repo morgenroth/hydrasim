@@ -3,10 +3,10 @@ libnl_1.1-4_x86.ipk
 libopenssl_0.9.8m-3_x86.ipk
 libsqlite3_3.6.20-2_x86.ipk
 libgcc_4.1.2-42_x86.ipk
-ibrcommon_0.5.61_x86.ipk
+ibrcommon_0.5.63_x86.ipk
 hnd_0.1_x86.ipk
-ibrdtn_0.5.40_x86.ipk
-ibrdtnd_0.5.71_x86.ipk
+ibrdtn_0.5.43_x86.ipk
+ibrdtnd_0.5.76_x86.ipk
 ibrdtn-tools_0.5.26_x86.ipk
 libpcap_1.0.0-2_x86.ipk
 tcpdump_4.0.0-2_x86.ipk
