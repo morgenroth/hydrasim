@@ -16,6 +16,8 @@ class MobilityNode:
         self.name=modelnode.name
         self.x=self.y=self.heading=self.speed=0
         self.currentConnections=[]
+        self.base_x = 0.0
+        self.base_y = 0.0
 
     @property
     def x(self):

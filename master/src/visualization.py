@@ -59,7 +59,10 @@ class VizServer(object):
         self.nodes[name] = (x, y, z)
         
         for c in self.connections:
-            c.request.send(name + ";" + str(x) + ";" + str(y) + ";" + str(z) + ";\n")
+            try:
+                c.request.send(name + ";" + str(x) + ";" + str(y) + ";" + str(z) + ";\n")
+            except:
+                pass
         
-        print("position of " + name + " " + str(x) + " x " + str(y) + " x " + str(z))
+        #print("position of " + name + " " + str(x) + " x " + str(y) + " x " + str(z))
 

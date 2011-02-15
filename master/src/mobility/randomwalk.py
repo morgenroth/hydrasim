@@ -38,7 +38,7 @@ class RandomWalk(threading.Thread):
         self.filename   = config.get('randomwalk','tracefile')
         self.width      = config.getint('randomwalk', 'width')
         self.height     = config.getint('randomwalk','height')
-        self.resolution = config.getint('randomwalk', 'resolution')
+        self.resolution = config.getfloat('randomwalk', 'resolution')
         self.movetime   = config.getint('randomwalk','movetime')
         self.vmin       = config.getfloat('randomwalk', 'vmin')
         self.vmax       = config.getfloat('randomwalk', 'vmax')
@@ -89,52 +89,52 @@ class RandomWalk(threading.Thread):
 
             for node in self.nodes:
                  dist=node.speed*(float(absTime)-float(node.lasttime))
-                 #print("NodeID is "+str(node.name)+" and travels "+str(dist)+" (v: "+str(node[I_V])+" dT: "+str(float(time)-float(node.lasttime)))
-                 dx=math.cos(node.heading)*dist
-                 dy=math.sin(node.heading)*dist
-                 nx=dx+node.x
-                 ny=dy+node.y
+                 #print("NodeID is "+str(node.name)+" and travels "+str(dist)+" (v: "+str(node.speed)+" dT: "+str(float(absTime)-float(node.lasttime)))
+                 dx = math.cos(node.heading)*dist
+                 dy = math.sin(node.heading)*dist
+                 node.x = dx+node.base_x
+                 node.y = dy+node.base_y
                  #if out of bounds, turn 180deg
-                 if nx < 0:
+                 if node.x < 0:
                      #print "B�MM L"
-                     nx=0
+                     node.x = 0
                      node.heading  = (-math.pi-node.heading)%(2*math.pi)
-                     node.x        =  nx #new basepoint
-                     node.y        =ny #new basepoint
+                     node.base_x        = node.x #new basepoint
+                     node.base_y        = node.y #new basepoint
                      node.lasttime =absTime
-                 elif nx > self.width:
+                 elif node.x > self.width:
                      #print "B�MM R"
-                     nx=self.width
+                     node.x = self.width
                      node.heading  =  (math.pi-node.heading)%(2*math.pi)
-                     node.x        = nx #new basepoint
-                     node.y        = ny #new basepoint
+                     node.base_x        = node.x #new basepoint
+                     node.base_y        = node.y #new basepoint
                      node.lasttime = absTime
-                 if ny < 0:
+                 if node.y < 0:
                      #print "B�MM B"
-                     ny            = 0
+                     node.y            = 0
                      node.heading  =  (-2*math.pi-node.heading)%(2*math.pi)
-                     node.y        = ny #new basepoint
-                     node.x        = nx #new basepoint
+                     node.base_y        = node.y #new basepoint
+                     node.base_x        = node.x #new basepoint
                      node.lasttime = absTime
-                 elif ny > self.height:
+                 elif node.y > self.height:
                      #print "B�MM T"
-                     ny            = self.height
+                     node.y            = self.height
                      node.heading  = (2*math.pi-node.heading)%(2*math.pi)
-                     node.y        = ny #new basepoint
-                     node.x        = nx #new basepoint
+                     node.base_y        = node.y #new basepoint
+                     node.base_x        = node.x #new basepoint
                      node.lasttime = absTime
                 #
                  currLog.time      = absTime
                  currLog.node      = node.name
-                 currLog.position  = (nx,ny)
+                 currLog.position  = (node.x, node.y)
                  currLog.write_line(fout)
                  
                  #new basepoint reached (time elapsed)
                  if (absTime > node.lasttime+self.movetime):
                     #print "Switch direction"
                     node.heading   = self.rand.uniform(0,2*math.pi)
-                    node.x         = nx #new basepoint
-                    node.y         = ny #new basepoint
+                    node.base_x         = node.x #new basepoint
+                    node.base_y         = node.y #new basepoint
                     node.lasttime  = absTime
                     node.speed     = self.rand.uniform(self.vmin, self.vmax)
                     
