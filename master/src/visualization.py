@@ -7,7 +7,6 @@ Created on 14.02.2011
 import SocketServer
 import socket
 import threading
-from sets import Set
 
 _vizserver = None
 
@@ -36,7 +35,7 @@ class VizServer(object):
     def __init__(self, address):
         self.address = address
         self.nodes = { }
-        self.connections = Set()
+        self.connections = set()
     
     def startup(self):
         global _vizserver

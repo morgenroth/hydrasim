@@ -86,6 +86,12 @@ class Slave:
         except:
             pass
         
+    def nodeScript(self, name, script):
+        try:
+            self.sock.send("ACTION\nSCRIPT " + name + " " + script + "\n")
+        except:
+            pass
+        
     def nodeConnectionUp(self, name, address):
         try:
             self.sock.send("ACTION\nUP " + name + " " + address + "\n")
@@ -231,6 +237,12 @@ class ClusterControl:
         """ fetch all node lists of each slave """
         for s in self.slaves:
             s.fetchAddressList()
+            
+    def script(self, script):
+        """ run custom setup script on each node """
+        for s in self.slaves:
+            for n in s.nodes:
+                s.nodeScript(n.name, script)
         
     def stop(self):
         """ send out a stop message to all cluster nodes """
@@ -295,6 +307,13 @@ class ClusterControl:
             if s.hasNode(node):
                 return s
         return None
+    
+    def nodeScript(self, name, script):
+        s = self.getSlaveOf(name)
+        if s != None:
+            print("call script on " + name)
+            print(script)
+            s.nodeScript(name, script)
     
     def nodeSetup(self, name):
         s = self.getSlaveOf(name)
@@ -516,12 +535,22 @@ class Setup(object):
         """ initialize the cluster """
         self.__init_cluster()
         self.cc.run()
-
-        # run custom simulation
+        
+        """ call custom setup script on each node in the cluster """
+        try:
+            fd = open(os.path.join(self.setupdir, "setup.txt"), "r")
+            for line in fd.readlines():
+                if len(line) > 0:
+                    self.cc.script(line)
+        except IOError:
+            ''' no custom setup script exists '''
+            pass
+        
+        """ run custom simulation """
         self.ctrl.run()
         self.ctrl.shutdown()
         
-        # shutdown viz api
+        """ shutdown viz api """
         self.vizapi.shutdown()
     
     """ cleanup the setup """
