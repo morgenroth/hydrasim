@@ -72,6 +72,8 @@ class RandomWalk(threading.Thread):
             node.lasttime=0
             node.x=self.rand.uniform(0, self.width)
             node.y=self.rand.uniform(0,self.height)
+            node.base_x=node.x
+            node.base_y=node.y
             node.heading=self.rand.uniform(0,2*math.pi)
             node.speed=self.rand.uniform(self.vmin, self.vmax)
             currLog.position=(node.x,node.y)
