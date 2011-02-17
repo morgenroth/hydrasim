@@ -46,9 +46,28 @@ class MovementReader(threading.Thread):
         self.file = open(self.filename, 'r')
         
         ''' read the first line. it contains the min/max values for the area '''
-        self.file.readline()
+        buffer = self.file.readline()
         
-        ''' but we start with the second line '''
+        ''' get min/max values '''
+        (min_time, buffer) = buffer.split(" ", 1)
+        (max_time, buffer) = buffer.split(" ", 1)
+        (min_x, buffer) = buffer.split(" ", 1)
+        (max_x, buffer) = buffer.split(" ", 1)
+        (min_y, buffer) = buffer.split(" ", 1)
+        (max_y, buffer) = buffer.split(" ", 1)
+        
+        ''' order all nodes beside the left border '''
+        halign = float(max_x) * 1.1
+        v_pos = float(max_y) * 0.025
+        v_step = (float(max_y) * 0.975) / len(self.nodes)
+        
+        for n in self.nodes:
+            n.x = halign
+            n.y = v_step 
+            v_step = v_pos + v_step
+            n.updatePosition()
+        
+        ''' read the first data line '''
         self.readdata()
         
         ''' store the current time for comparison in the next round '''

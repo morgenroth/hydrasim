@@ -363,7 +363,7 @@ class Setup(object):
             self.template_base_file = self.basedir + "/" + self.config.get("template", "image")
             
         self.cc = None
-        self.vizapi = visualization.VizServer((self.config.get("general", "mcast_interface"), 5000))
+        self.vizapi = visualization.VizServer((self.config.get("general", "mcast_interface"), 8077))
         
     def loadController(self):
         """ import the module """
