@@ -4,6 +4,8 @@ __date__ ="$29.04.2010 14:05:02$"
 
 import randomwalk
 import logplay.theone
+import movement.theone
+from mobilitynode import MobilityNode
 
 class MobilityModel:
 
@@ -16,6 +18,14 @@ class MobilityModel:
             self.model=logplay.theone.TheONEReader(setup.ctrl.getNodes(), setup.config)
         elif self.mobilitymodule == "static":
             self.model=logplay.static.StaticConnections(setup.ctrl.getNodes(), setup.config)
+        elif self.mobilitymodule == "movement":
+            #Creating mobility nodes
+            mob_nodes = []
+            for node in setup.ctrl.getNodes():
+                cn = MobilityNode(node)
+                mob_nodes.append(cn)
+            
+            self.model = movement.theone.Movement(mob_nodes, setup.setupdir, setup.config)
         else:
             print("Mobility: Unknown model "+str(self.mobilitymodule))
             self.start=self.nomodule
