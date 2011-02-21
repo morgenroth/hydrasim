@@ -15,6 +15,12 @@ class Movement(object):
         self.filename = os.path.join(setupdir, config.get("movement", "file"))
         self.reader = None
         self.nodes = nodes
+        self.loop = False
+        
+        try:
+            self.loop = (config.get("movement", "loop") == "1")
+        except:
+            pass
 
         # by default all nodes are disabled
         for n in self.nodes:
@@ -41,6 +47,12 @@ class MovementReader(threading.Thread):
         self.nodes = nodes
         
     def run(self):
+        while True:
+            self.run_sim()
+            if not self.loop:
+                break
+        
+    def run_sim(self):
         print("TheONE movement reader starting")
         self.running = True
         self.file = open(self.filename, 'r')
@@ -102,6 +114,8 @@ class MovementReader(threading.Thread):
             ''' read the next line '''
             self.readdata()
         
+        """ close the file """
+        self.file.close()
         print("TheONE movement finished")
         
     def updateConnections(self):
