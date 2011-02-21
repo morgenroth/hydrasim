@@ -31,6 +31,10 @@ class Slave:
         self.readbuf = ""
         self.nodes = []
         
+    @staticmethod
+    def sort_key(slave):
+        return slave.name + " " + str(slave.address)
+        
     def connect(self, port):
         try:
             self.sock.connect((self.address[0], port))
@@ -210,6 +214,10 @@ class ClusterControl:
 
             for fd in exc_:
                 pass
+            
+        """ sort the list for deterministic node assignment """
+        list.sort()
+        self.slaves.sort(key=Slave.sort_key)
             
         return list
     
