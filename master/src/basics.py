@@ -382,7 +382,8 @@ class Setup(object):
         return ctrl
         
     def exit(self):
-        self.cc.stop()
+        if self.cc != None:
+            self.cc.stop()
         
     def nodePosition(self, name, x, y, z):
         self.vizapi.nodePosition(name, x, y, z)
