@@ -25,7 +25,7 @@ config 'daemon' 'statistic'
 	option type			udp
 	option interval		60
 	option file			/tmp/ibrdtn.stats
-	option address		10.42.0.1
+	option address		10.42.0.101
 	option port		4848
 
 #

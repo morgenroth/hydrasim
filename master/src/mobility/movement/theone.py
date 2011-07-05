@@ -28,7 +28,7 @@ class Movement(object):
             n.range = float(config.get("movement", "range"))
     
     def start(self):
-        self.reader = MovementReader(self.filename, self.nodes)
+        self.reader = MovementReader(self.filename, self.nodes, self.loop)
         self.reader.start()
 
     def stop(self):
@@ -37,7 +37,7 @@ class Movement(object):
     
 class MovementReader(threading.Thread):
     
-    def __init__(self, filename, nodes):
+    def __init__(self, filename, nodes, loop):
         threading.Thread.__init__(self)
         self.daemon=True
         self.filename = filename
@@ -45,6 +45,7 @@ class MovementReader(threading.Thread):
         self.file = None
         self.buffer = None
         self.nodes = nodes
+	self.loop = loop
         
     def run(self):
         while True:
@@ -56,6 +57,7 @@ class MovementReader(threading.Thread):
         print("TheONE movement reader starting")
         self.running = True
         self.file = open(self.filename, 'r')
+	self.eof = False
         
         ''' read the first line. it contains the min/max values for the area '''
         buffer = self.file.readline()
@@ -78,6 +80,7 @@ class MovementReader(threading.Thread):
             n.y = v_step 
             v_step = v_pos + v_step
             n.updatePosition()
+            n.disabled = True
         
         ''' read the first data line '''
         self.readdata()

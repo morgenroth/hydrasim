@@ -28,7 +28,7 @@ if [ -x /etc/init.d/firewall ]; then
 fi
 
 if [ -x /etc/init.d/ibrdtn ]; then
-	/etc/init.d/ibrdtn enable
+	/etc/init.d/ibrdtn disable
 fi
 
 echo "Modify base image done."

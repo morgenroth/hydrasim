@@ -96,6 +96,13 @@ chroot "$BASE/mnt" /bin/sh <<EOF
 /sbin/uci del network.lan.ipaddr
 /sbin/uci del network.lan.netmask
 /sbin/uci set network.lan.proto=dhcp
+
+# time sync
+/sbin/uci del ntpclient.@ntpserver[3]
+/sbin/uci del ntpclient.@ntpserver[2]
+/sbin/uci del ntpclient.@ntpserver[1]
+/sbin/uci set ntpclient.@ntpserver[0].hostname=10.42.0.30
+
 /sbin/uci commit
 
 # change permissions
